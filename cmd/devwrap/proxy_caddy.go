@@ -38,8 +38,7 @@ func startEmbeddedCaddy(httpPort, httpsPort int) error {
 			"tls": map[string]any{
 				"automation": map[string]any{
 					"policies": []map[string]any{{
-						"subjects": []string{"localhost", "*.localhost"},
-						"issuers":  []map[string]any{{"module": "internal"}},
+						"issuers": []map[string]any{{"module": "internal"}},
 					}},
 				},
 			},

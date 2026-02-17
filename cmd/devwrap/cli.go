@@ -20,13 +20,14 @@ func run(args []string) error {
 
 func newRootCommand() *cobra.Command {
 	var name string
+	var host string
 	var privileged bool
 
 	root := &cobra.Command{
 		Use:           "devwrap --name <name> -- <cmd...>",
 		Short:         "Local dev reverse proxy helper",
-		Long:          "Run local apps behind Caddy and map <name>.localhost. Use @PORT in your command arguments to inject the allocated app port.",
-		Example:       "  devwrap --name myapp -- pnpm dev\n  devwrap --name api -- uvicorn app:app --port @PORT\n  devwrap -p",
+		Long:          "Run local apps behind Caddy and map routes to local app ports. Use @PORT in your command arguments to inject the allocated app port.",
+		Example:       "  devwrap --name myapp -- pnpm dev\n  devwrap --name api -- uvicorn app:app --port @PORT\n  devwrap --name web --host web.dev.test -- pnpm dev\n  devwrap -p",
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		Args:          cobra.ArbitraryArgs,
@@ -46,7 +47,7 @@ func newRootCommand() *cobra.Command {
 				}
 				return errors.New("missing command after '--'")
 			}
-			return runApp(name, args, privileged)
+			return runApp(name, host, args, privileged)
 		},
 	}
 
@@ -62,6 +63,7 @@ func newRootCommand() *cobra.Command {
 	})
 
 	root.Flags().StringVar(&name, "name", "", "App route name (e.g. myapp)")
+	root.Flags().StringVar(&host, "host", "", "Custom hostname (default: <name>.localhost)")
 	root.Flags().BoolVarP(&privileged, "privileged", "p", false, "Use sudo to spawn proxy if Caddy is not already running")
 	root.PersistentFlags().BoolVar(&outputJSON, "json", false, "Output JSON for scripting")
 
@@ -143,8 +145,13 @@ func helpOnArgValidationError(next cobra.PositionalArgs) cobra.PositionalArgs {
 	}
 }
 
-func runApp(name string, cmdArgs []string, privileged bool) error {
+func runApp(name, host string, cmdArgs []string, privileged bool) error {
 	if err := validateName(name); err != nil {
+		return err
+	}
+
+	resolvedHost, err := hostForApp(name, host)
+	if err != nil {
 		return err
 	}
 
@@ -152,7 +159,7 @@ func runApp(name string, cmdArgs []string, privileged bool) error {
 		return err
 	}
 
-	lease, err := acquireLease(name, os.Getpid())
+	lease, err := acquireLease(name, resolvedHost, os.Getpid())
 	if err != nil {
 		if checkDaemonReachable() {
 			if path, logErr := daemonLogPath(); logErr == nil {

@@ -1,6 +1,6 @@
 # devwrap
 
-Run local app commands behind Caddy with friendly localhost hostnames.
+Run local app commands behind Caddy with friendly local hostnames.
 
 ## Install
 
@@ -22,11 +22,19 @@ curl -fsSL https://raw.githubusercontent.com/iterate/devwrap/main/install.sh | b
 devwrap --name myapp -- pnpm dev
 ```
 
+Use a custom host when needed:
+
+```bash
+devwrap --name web --host web.dev.test -- pnpm dev
+```
+
 Use `@PORT` when your app expects a CLI flag instead of env vars:
 
 ```bash
 devwrap --name dev-server -- vite dev --port @PORT
 ```
+
+By default hosts are `<name>.localhost`.
 
 `devwrap` also sets `PORT=<allocated port>`, `DEVWRAP_APP=<name>`, and `DEVWRAP_HOST=<https url>` for the child process.
 

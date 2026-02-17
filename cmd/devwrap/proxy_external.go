@@ -12,6 +12,7 @@ import (
 )
 
 const caddyAdminBase = "http://127.0.0.1:2019"
+const devwrapInternalTLSPolicyID = "devwrap-internal-policy"
 
 type externalCaddyInfo struct {
 	Available bool
@@ -63,7 +64,133 @@ func applyRoutesViaAdmin(apps map[string]App) (int, int, error) {
 		}
 	}
 
+	if err := syncDevwrapInternalTLSPolicy(apps); err != nil {
+		return 0, 0, err
+	}
+
 	return httpPort, httpsPort, nil
+}
+
+func syncDevwrapInternalTLSPolicy(apps map[string]App) error {
+	subjectSet := make(map[string]struct{}, len(apps))
+	for _, app := range apps {
+		subject := tlsSubjectForHost(app.Host)
+		subjectSet[subject] = struct{}{}
+	}
+	subjects := make([]string, 0, len(subjectSet))
+	for subject := range subjectSet {
+		subjects = append(subjects, subject)
+	}
+	sort.Strings(subjects)
+
+	policies, found, err := fetchTLSAutomationPolicies()
+	if err != nil {
+		return err
+	}
+
+	merged := mergeDevwrapInternalTLSPolicy(policies, subjects)
+	if found {
+		return putTLSAutomationPolicies(merged)
+	}
+	if len(subjects) == 0 {
+		return nil
+	}
+	return createTLSAppWithPolicies(merged)
+}
+
+func tlsSubjectForHost(host string) string {
+	h := strings.ToLower(strings.TrimSpace(host))
+	if i := strings.IndexByte(h, '.'); i > 0 && i < len(h)-1 {
+		return "*." + h[i+1:]
+	}
+	return h
+}
+
+func fetchTLSAutomationPolicies() ([]any, bool, error) {
+	res, err := adminGet("/config/apps/tls/automation/policies")
+	if err != nil {
+		return nil, false, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode == http.StatusNotFound {
+		return nil, false, nil
+	}
+	if res.StatusCode >= 300 {
+		return nil, false, fmt.Errorf("caddy TLS policy query failed: %s", adminReadBody(res))
+	}
+	var policies []any
+	if err := json.NewDecoder(res.Body).Decode(&policies); err != nil {
+		return nil, false, err
+	}
+	return policies, true, nil
+}
+
+func mergeDevwrapInternalTLSPolicy(existing []any, hosts []string) []any {
+	out := make([]any, 0, len(existing)+1)
+	if len(hosts) > 0 {
+		out = append(out, map[string]any{
+			"@id":      devwrapInternalTLSPolicyID,
+			"subjects": hosts,
+			"issuers":  []map[string]any{{"module": "internal"}},
+		})
+	}
+	for _, policyAny := range existing {
+		policy, ok := policyAny.(map[string]any)
+		if !ok {
+			out = append(out, policyAny)
+			continue
+		}
+		id, _ := policy["@id"].(string)
+		if id == devwrapInternalTLSPolicyID {
+			continue
+		}
+		out = append(out, policyAny)
+	}
+	return out
+}
+
+func putTLSAutomationPolicies(policies []any) error {
+	path := "/config/apps/tls/automation/policies"
+	res, err := adminDoJSON(http.MethodPatch, path, policies)
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode >= 300 {
+		body := adminReadBody(res)
+
+		if deleteReq, deleteErr := http.NewRequest(http.MethodDelete, adminURL(path), nil); deleteErr == nil {
+			if deleteRes, doErr := apiClient().Do(deleteReq); doErr == nil {
+				_ = deleteRes.Body.Close()
+			}
+		}
+
+		createRes, createErr := adminDoJSON(http.MethodPut, path, policies)
+		if createErr == nil {
+			defer createRes.Body.Close()
+			if createRes.StatusCode < 300 {
+				return nil
+			}
+			return fmt.Errorf("caddy TLS policy update failed: %s", adminReadBody(createRes))
+		}
+
+		return fmt.Errorf("caddy TLS policy update failed: %s", body)
+	}
+	return nil
+}
+
+func createTLSAppWithPolicies(policies []any) error {
+	res, err := adminDoJSON(http.MethodPut, "/config/apps/tls", map[string]any{
+		"automation": map[string]any{"policies": policies},
+	})
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	if res.StatusCode >= 300 {
+		return fmt.Errorf("caddy TLS app create failed: %s", adminReadBody(res))
+	}
+	return nil
 }
 
 func makeDevwrapRoutes(apps map[string]App) []map[string]any {

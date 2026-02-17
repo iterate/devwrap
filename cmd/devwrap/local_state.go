@@ -8,6 +8,7 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -114,21 +115,30 @@ func localStatusFromFiles() (ProxyStatus, error) {
 	return out, nil
 }
 
-func requestLeaseDirect(name string, pid int) (Lease, error) {
+func requestLeaseDirect(name, host string, pid int) (Lease, error) {
 	var lease Lease
 	err := withStateLock(func() error {
 		state, err := loadLocalState()
 		if err != nil {
 			return err
 		}
+		appHost, err := hostForApp(name, host)
+		if err != nil {
+			return err
+		}
 		for appName, app := range state.Apps {
 			if !processAlive(app.PID) {
 				delete(state.Apps, appName)
+				continue
+			}
+			if appName != name && strings.EqualFold(app.Host, appHost) {
+				return fmt.Errorf("host %q is already used by app %q", appHost, appName)
 			}
 		}
 
 		app, ok := state.Apps[name]
 		if ok {
+			app.Host = appHost
 			app.PID = pid
 			app.StartedAt = time.Now().UTC().Format(time.RFC3339)
 		} else {
@@ -138,7 +148,7 @@ func requestLeaseDirect(name string, pid int) (Lease, error) {
 			}
 			app = App{
 				Name:      name,
-				Host:      name + ".localhost",
+				Host:      appHost,
 				Port:      port,
 				PID:       pid,
 				StartedAt: time.Now().UTC().Format(time.RFC3339),

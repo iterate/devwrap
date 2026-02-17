@@ -31,8 +31,8 @@ func apiClient() *http.Client {
 	return adminHTTPClient
 }
 
-func acquireLease(name string, pid int) (Lease, error) {
-	return requestLeaseDirect(name, pid)
+func acquireLease(name, host string, pid int) (Lease, error) {
+	return requestLeaseDirect(name, host, pid)
 }
 
 func releaseLeaseSelected(name string, pid int) {

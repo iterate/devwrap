@@ -5,7 +5,7 @@
 `devwrap` is a local development CLI that:
 
 - Runs an app command with an assigned local app port.
-- Registers a host route like `myapp.localhost` in Caddy.
+- Registers a host route like `myapp.localhost` (or a custom `--host`) in Caddy.
 - Uses Caddy as the reverse proxy and TLS terminator.
 - Reuses any existing Caddy Admin API when available.
 - Spawns its own embedded Caddy wrapper daemon only when needed.
@@ -14,6 +14,7 @@ Core user run shape:
 
 ```bash
 devwrap --name myapp -- <command...>
+devwrap --name myapp --host myapp.dev.test -- <command...>
 ```
 
 Example:
@@ -94,15 +95,16 @@ devwrap --name=<app> -- <cmd...>
 Flow:
 
 1. Parse/validate app name (`[a-z0-9-]`, not leading/trailing `-`).
-2. Ensure Caddy Admin is available (unmanaged or managed).
-3. Acquire lease from file state and sync routes directly to Caddy Admin.
-4. Print HTTPS/HTTP URLs.
-5. Warn if Caddy local CA is not trusted.
-6. Run child command with:
+2. Resolve host (`--host` or default `<name>.localhost`) and validate hostname format.
+3. Ensure Caddy Admin is available (unmanaged or managed).
+4. Acquire lease from file state and sync routes directly to Caddy Admin.
+5. Print HTTPS/HTTP URLs.
+6. Warn if Caddy local CA is not trusted.
+7. Run child command with:
    - `PORT=<assigned-port>` in env
    - `DEVWRAP_APP=<name>` in env
    - `@PORT` token replacement in argv
-7. Forward signals to child; release lease on exit.
+8. Forward signals to child; release lease on exit.
 
 ### Proxy Commands
 
@@ -179,7 +181,7 @@ Special handling:
 For each app, route created with:
 
 - `@id: devwrap-<app-name>`
-- host match: `<app>.localhost`
+- host match: app host from state (`--host` override or `<app>.localhost`)
 - handler: reverse proxy to `127.0.0.1:<app-port>`
 
 Route update behavior:
@@ -194,7 +196,7 @@ This preserves non-devwrap routes while replacing devwrap-managed entries.
 
 ## TLS + Trust
 
-Embedded Caddy is configured with internal issuer for `localhost` and `*.localhost`.
+Embedded Caddy is configured with internal issuer for all subjects, so custom hosts still use devwrap's local CA.
 
 For managed mode, embedded Caddy is configured with explicit file-system storage root so CA material is reusable:
 
