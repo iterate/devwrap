@@ -203,7 +203,7 @@ func runApp(name string, cmdArgs []string, privileged bool) error {
 	release := func() {
 		releaseLeaseSelected(name, os.Getpid())
 	}
-	return runChild(name, cmdArgs, lease.Port, release)
+	return runChild(name, cmdArgs, lease.Port, normalizeDevwrapHostURL(lease.HTTPSURL), release)
 }
 
 func wantsJSONArgs(args []string) bool {

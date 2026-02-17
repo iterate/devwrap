@@ -28,7 +28,7 @@ Use `@PORT` when your app expects a CLI flag instead of env vars:
 devwrap --name dev-server -- vite dev --port @PORT
 ```
 
-`devwrap` also sets `PORT=<allocated port>` for the child process.
+`devwrap` also sets `PORT=<allocated port>`, `DEVWRAP_APP=<name>`, and `DEVWRAP_HOST=<https url>` for the child process.
 
 ## Proxy Modes
 

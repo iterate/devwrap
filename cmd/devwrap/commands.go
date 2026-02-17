@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -351,7 +352,7 @@ func runRemove(name string) error {
 	return nil
 }
 
-func runChild(name string, cmdArgs []string, port int, release func()) error {
+func runChild(name string, cmdArgs []string, port int, hostURL string, release func()) error {
 	templated := applyTemplates(cmdArgs, port)
 	cmd := exec.Command(templated[0], templated[1:]...)
 	cmd.Stdin = os.Stdin
@@ -361,6 +362,9 @@ func runChild(name string, cmdArgs []string, port int, release func()) error {
 	env := os.Environ()
 	env = append(env, "PORT="+strconv.Itoa(port))
 	env = append(env, "DEVWRAP_APP="+name)
+	if hostURL != "" {
+		env = append(env, "DEVWRAP_HOST="+hostURL)
+	}
 	cmd.Env = env
 
 	if err := cmd.Start(); err != nil {
@@ -396,6 +400,19 @@ func runChild(name string, cmdArgs []string, port int, release func()) error {
 		}
 	}
 	return err
+}
+
+func normalizeDevwrapHostURL(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme == "" || u.Host == "" {
+		return raw
+	}
+	hostname := u.Hostname()
+	port := u.Port()
+	if port == "" || port == "80" || port == "443" {
+		return u.Scheme + "://" + hostname
+	}
+	return u.Scheme + "://" + hostname + ":" + port
 }
 
 type childExitError struct {
