@@ -13,7 +13,7 @@ curl -fsSL https://raw.githubusercontent.com/iterate/devwrap/main/install.sh | b
 Install a specific release:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/iterate/devwrap/main/install.sh | bash -- -v 0.1.0
+curl -fsSL https://raw.githubusercontent.com/iterate/devwrap/main/install.sh | bash -s -- -v 0.0.2
 ```
 
 ## Quick Start
