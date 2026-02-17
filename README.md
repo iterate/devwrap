@@ -82,6 +82,32 @@ devwrap --json --name api -- uvicorn app:app --port @PORT
 
 `devwrap proxy trust` fetches the local CA root from Caddy admin API and installs trust using the same truststore approach used by Caddy.
 
+For Node.js clients (`fetch`, undici, axios over HTTPS), you may also need to enable CA trust in Node:
+
+- Newer Node versions: set `NODE_USE_SYSTEM_CA=1` so Node uses system trust.
+- Older Node versions (or as a fallback): set `NODE_EXTRA_CA_CERTS` to Caddy's local root cert path.
+
+Caddy local root cert path is resolved from the Caddy data dir in this order:
+
+- `$DEVWRAP_CADDY_DATA_DIR` (if set)
+- else `$CADDY_DATA_DIR` (if set)
+- else platform default Caddy data dir (macOS: `~/Library/Application Support/Caddy`, Linux: `~/.local/share/caddy`)
+
+Append `pki/authorities/local/root.crt` to the selected data dir.
+
+Example:
+
+```bash
+# Newer Node
+export NODE_USE_SYSTEM_CA=1
+
+# Older Node / fallback (macOS)
+export NODE_EXTRA_CA_CERTS="$HOME/Library/Application Support/Caddy/pki/authorities/local/root.crt"
+
+# Older Node / fallback (Linux)
+export NODE_EXTRA_CA_CERTS="$HOME/.local/share/caddy/pki/authorities/local/root.crt"
+```
+
 ## Runtime Files
 
 State is stored in:
