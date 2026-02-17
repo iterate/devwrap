@@ -53,16 +53,14 @@ func runProxyStart(privileged bool) error {
 	cmdArgs := []string{"proxy", "daemon"}
 	if privileged {
 		cmdName = "sudo"
-		cmdArgs = append([]string{bin}, cmdArgs...)
+		cmdArgs = append([]string{"--preserve-env=XDG_STATE_HOME,DEVWRAP_CADDY_DATA_DIR,CADDY_DATA_DIR", bin}, cmdArgs...)
 	}
 	cmd := exec.Command(cmdName, cmdArgs...)
+	cmd.Stdout = logFile
+	cmd.Stderr = logFile
 	if privileged {
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
 		cmd.Stdin = os.Stdin
 	} else {
-		cmd.Stdout = logFile
-		cmd.Stderr = logFile
 		cmd.Stdin = nil
 	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}

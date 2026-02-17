@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strconv"
 	"syscall"
@@ -21,7 +22,7 @@ const (
 func runtimeDir() (string, error) {
 	base := os.Getenv("XDG_STATE_HOME")
 	if base == "" {
-		home, err := os.UserHomeDir()
+		home, err := runtimeHomeDir()
 		if err != nil {
 			return "", err
 		}
@@ -32,6 +33,19 @@ func runtimeDir() (string, error) {
 		return "", err
 	}
 	return dir, nil
+}
+
+func runtimeHomeDir() (string, error) {
+	if os.Geteuid() == 0 {
+		sudoUser := os.Getenv("SUDO_USER")
+		if sudoUser != "" {
+			u, err := user.Lookup(sudoUser)
+			if err == nil && u.HomeDir != "" {
+				return u.HomeDir, nil
+			}
+		}
+	}
+	return os.UserHomeDir()
 }
 
 func pidPath() (string, error) {
